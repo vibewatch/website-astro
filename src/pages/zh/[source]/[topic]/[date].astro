@@ -1,0 +1,98 @@
+---
+import { type GetStaticPaths } from "astro";
+import { render } from "astro:content";
+import BaseLayout from "~/layouts/BaseLayout.astro";
+import TocNav from "~/components/TocNav.astro";
+import ReportPager from "~/components/ReportPager.astro";
+import {
+  SOURCES,
+  STRINGS,
+  TOPICS,
+  sourceLabel,
+  topicLabel,
+} from "~/data/site";
+import {
+  buildReportMeta,
+  getReportsByLang,
+  homeUrl,
+  shortLabel,
+  topicUrl,
+} from "~/lib/reports";
+
+export const getStaticPaths = (async () => {
+  const reports = await getReportsByLang("zh");
+  return reports.map((r) => ({
+    params: { source: r.source, topic: r.topic, date: r.date },
+    props: { id: r.id },
+  }));
+}) satisfies GetStaticPaths;
+
+const lang = "zh" as const;
+const { source, topic, date } = Astro.params;
+const reports = await getReportsByLang(lang);
+const idx = reports.findIndex(
+  (r) => r.source === source && r.topic === topic && r.date === date,
+);
+if (idx < 0) return Astro.redirect("/404");
+const rec = reports[idx]!;
+const sm = SOURCES.find((s) => s.key === rec.source)!;
+const tm = TOPICS.find((t) => t.key === rec.topic)!;
+const t = STRINGS[lang];
+
+const sameSeries = reports.filter(
+  (r) => r.source === rec.source && r.topic === rec.topic,
+);
+const seriesIdx = sameSeries.findIndex((r) => r.date === rec.date);
+const next = seriesIdx > 0 ? sameSeries[seriesIdx - 1] : undefined;
+const prev = seriesIdx >= 0 && seriesIdx < sameSeries.length - 1
+  ? sameSeries[seriesIdx + 1]
+  : undefined;
+
+const { Content, headings } = await render(rec.entry);
+const meta = buildReportMeta(rec, rec.entry.body ?? "");
+const altLangHref = `/${rec.source}/${rec.topic}/${rec.date}/`;
+---
+<BaseLayout
+  lang={lang}
+  pageTitle={`${sourceLabel(sm, lang)} ${topicLabel(tm, lang)} — ${shortLabel(rec.date, lang)}`}
+  description={meta.description}
+  ogImage={meta.image}
+  author={meta.author}
+  date={rec.date}
+  activeSource={rec.source as any}
+  activeTopic={rec.topic as any}
+  altLangHref={altLangHref}
+>
+  <div class="container">
+    <nav class="crumbs" style="margin-top:1.6rem;" aria-label="Breadcrumb">
+      <a href={homeUrl(lang)}>{t.home}</a>
+      <span class="crumbs__sep">/</span>
+      <a href={topicUrl(rec.source, rec.topic, lang)}>
+        {sourceLabel(sm, lang)} · {topicLabel(tm, lang)}
+      </a>
+      <span class="crumbs__sep">/</span>
+      <span>{shortLabel(rec.date, lang)}</span>
+    </nav>
+
+    <div class="article-shell">
+      <div>
+        <div class="article-meta">
+          <time class="article-meta__date" datetime={rec.date}>{rec.date}</time>
+          <span class="article-meta__pill">
+            <span set:html={sm.iconSvg}></span>
+            {sourceLabel(sm, lang)}
+          </span>
+          <span class="article-meta__pill">{topicLabel(tm, lang)}</span>
+        </div>
+
+        <article class="article-prose" data-pagefind-body>
+          <Content />
+        </article>
+
+        <ReportPager prev={prev} next={next} lang={lang} />
+      </div>
+
+      <TocNav headings={headings} lang={lang} />
+    </div>
+  </div>
+</BaseLayout>

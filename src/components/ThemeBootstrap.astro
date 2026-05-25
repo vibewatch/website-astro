@@ -1,0 +1,22 @@
+---
+/**
+ * Theme bootstrap — runs before paint so [data-theme]
+ * is set on <html> with the user's preference (or system pref).
+ */
+---
+<script is:inline>
+  (function () {
+    try {
+      var stored = localStorage.getItem("theme");
+      var theme = stored;
+      if (!theme) {
+        theme = window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light";
+      }
+      document.documentElement.setAttribute("data-theme", theme);
+    } catch (_) {
+      document.documentElement.setAttribute("data-theme", "light");
+    }
+  })();
+</script>

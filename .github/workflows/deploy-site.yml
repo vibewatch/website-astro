@@ -1,0 +1,145 @@
+name: Deploy AI Pulse Daily site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'astro.config.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - '.github/workflows/deploy-site.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-site:
+    name: Build site
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install deps
+        run: npm ci
+      - name: Build site (Astro + Pagefind)
+        run: npm run build
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: dist/
+
+  deploy-site:
+    name: Deploy to Pages
+    needs: build-site
+    permissions:
+      pages: write
+      id-token: write
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+  notify-subscribers:
+    name: Notify subscribers
+    needs: deploy-site
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout (with history)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+      - name: Detect new reports
+        id: detect
+        run: |
+          # Find newly added .md report files (not .zh.md translations)
+          NEW_FILES=$(git diff --name-only --diff-filter=A HEAD~1 HEAD -- 'docs/reddit/**/*.md' 'docs/twitter/**/*.md' 'docs/hackernews/**/*.md' 'docs/youtube/**/*.md' | grep -v '\.zh\.md$' || true)
+          if [ -z "$NEW_FILES" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No new report files detected."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            # Build subject and body from first new file
+            FIRST_FILE=$(echo "$NEW_FILES" | head -1)
+            # Extract source and topic from path: docs/{source}/{topic}/{date}.md
+            SOURCE=$(echo "$FIRST_FILE" | cut -d'/' -f2)
+            TOPIC=$(echo "$FIRST_FILE" | cut -d'/' -f3)
+            DATE=$(basename "$FIRST_FILE" .md)
+            COUNT=$(echo "$NEW_FILES" | wc -l)
+            SUBJECT="New AI Pulse Daily report: ${SOURCE}/${TOPIC} ${DATE}"
+            if [ "$COUNT" -gt 1 ]; then
+              SUBJECT="New AI Pulse Daily: ${COUNT} new reports (${DATE})"
+            fi
+            echo "subject=${SUBJECT}" >> "$GITHUB_OUTPUT"
+            # Build links list
+            LINKS=""
+            while IFS= read -r f; do
+              # Convert docs/reddit/ai/2026-04-14.md → reddit/ai/2026-04-14/
+              REL=$(echo "$f" | sed 's|^docs/||; s|\.md$|/|')
+              S=$(echo "$f" | cut -d'/' -f2)
+              T=$(echo "$f" | cut -d'/' -f3)
+              D=$(basename "$f" .md)
+              LINKS="${LINKS}<li><a href=\"https://genisisiq.com/${REL}\">${S} / ${T} — ${D}</a></li>"
+            done <<< "$NEW_FILES"
+            BODY="<h2>New Reports Published</h2><ul>${LINKS}</ul><p>Visit <a href=\"https://genisisiq.com\">AI Pulse Daily</a> for more.</p><p style=\"font-size:12px;color:#999;\"><a href=\"{{UNSUBSCRIBE_URL}}\">Unsubscribe</a></p>"
+            echo "body<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$BODY" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Check newsletter config
+        id: newsletter-config
+        if: steps.detect.outputs.skip != 'true'
+        env:
+          NEWSLETTER_WORKER_URL: ${{ secrets.NEWSLETTER_WORKER_URL }}
+          NEWSLETTER_SEND_KEY: ${{ secrets.NEWSLETTER_SEND_KEY }}
+        run: |
+          if [ -z "$NEWSLETTER_WORKER_URL" ] || [ -z "$NEWSLETTER_SEND_KEY" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Newsletter secrets are not configured; skipping subscriber notification."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Send newsletter
+        if: steps.detect.outputs.skip != 'true' && steps.newsletter-config.outputs.configured == 'true'
+        continue-on-error: true
+        env:
+          NEWSLETTER_WORKER_URL: ${{ secrets.NEWSLETTER_WORKER_URL }}
+          NEWSLETTER_SEND_KEY: ${{ secrets.NEWSLETTER_SEND_KEY }}
+          NEWSLETTER_SUBJECT: ${{ steps.detect.outputs.subject }}
+          NEWSLETTER_HTML_BODY: ${{ steps.detect.outputs.body }}
+        run: |
+          WORKER_URL="${NEWSLETTER_WORKER_URL%/}"
+          if ! printf '%s\n' "$WORKER_URL" | grep -Eq '^https?://'; then
+            WORKER_URL="https://$WORKER_URL"
+          fi
+
+          jq -n \
+            --arg subject "$NEWSLETTER_SUBJECT" \
+            --arg html_body "$NEWSLETTER_HTML_BODY" \
+            '{subject: $subject, html_body: $html_body}' > payload.json
+
+          curl --fail-with-body -sS --retry 3 --retry-all-errors \
+            -X POST "$WORKER_URL/api/send" \
+            -H "Authorization: Bearer $NEWSLETTER_SEND_KEY" \
+            -H "Content-Type: application/json" \
+            --data @payload.json

@@ -1,0 +1,18 @@
+---
+import { SITE } from "~/data/site";
+---
+<!-- Google Analytics -->
+<script
+  is:inline
+  async
+  src={`https://www.googletagmanager.com/gtag/js?id=${SITE.analyticsId}`}
+></script>
+<script is:inline define:vars={{ id: SITE.analyticsId }}>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() {
+    window.dataLayer.push(arguments);
+  }
+  window.gtag = gtag;
+  gtag("js", new Date());
+  gtag("config", id);
+</script>

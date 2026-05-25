@@ -1,0 +1,41 @@
+---
+import { STRINGS, type Lang } from "~/data/site";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = STRINGS[lang];
+const placeholder = "you@example.com";
+const title = lang === "zh"
+  ? "每日 AI 速递，直达收件箱"
+  : "Daily AI insights, in your inbox";
+const desc = lang === "zh"
+  ? "从社交网络抓取的趋势、痛点与新兴话题，每日推送。"
+  : "Themes, pain points, and emerging topics — every day.";
+---
+<div class="modal" id="subscribe-overlay" data-pagefind-ignore>
+  <div class="modal__panel" id="subscribe-dialog">
+    <button class="modal__close" id="subscribe-close" type="button" aria-label="Close">×</button>
+    <form class="subscribe-form" id="newsletter-form">
+      <h3 class="subscribe-form__title">{title}</h3>
+      <p class="subscribe-form__desc">{desc}</p>
+      <div class="subscribe-form__row">
+        <input
+          type="email"
+          name="email"
+          placeholder={placeholder}
+          required
+          class="subscribe-form__email"
+          id="newsletter-email"
+          autocomplete="email"
+        />
+        <button type="submit" class="subscribe-form__btn" id="newsletter-btn">
+          {t.subscribe}
+        </button>
+      </div>
+      <span class="subscribe-form__msg" id="newsletter-msg"></span>
+    </form>
+  </div>
+</div>

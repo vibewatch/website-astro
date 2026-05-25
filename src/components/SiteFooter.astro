@@ -1,0 +1,40 @@
+---
+import { SITE, STRINGS, type Lang } from "~/data/site";
+import { feedUrl } from "~/lib/reports";
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const t = STRINGS[lang];
+const back = lang === "zh" ? "返回顶部" : "Back to top";
+---
+<footer class="site-footer">
+  <div class="site-footer__inner container">
+    <a href={"#top"} class="site-footer__brand">{t.siteName}</a>
+    <nav class="site-footer__links">
+      <a href={feedUrl(lang)} rel="alternate" type="application/rss+xml">RSS</a>
+      <a href={"#top"}>{back}</a>
+      <button class="site-footer__links-btn" id="subscribe-open-footer" type="button" style="background:none;border:none;color:inherit;cursor:pointer;padding:0;font:inherit;">
+        {t.subscribe}
+      </button>
+    </nav>
+    <div class="site-footer__copy">{SITE.copyright}</div>
+  </div>
+</footer>
+
+<script is:inline>
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest && e.target.closest('a[href="#top"]');
+    if (t) {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    var s = e.target.closest && e.target.closest('#subscribe-open-footer');
+    if (s) {
+      var open = document.getElementById('subscribe-open');
+      if (open) open.click();
+    }
+  });
+</script>
+

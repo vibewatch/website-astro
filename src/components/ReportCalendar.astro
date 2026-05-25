@@ -1,0 +1,117 @@
+---
+import type { Lang } from "~/data/site";
+import {
+  DAY_NAMES_EN,
+  DAY_NAMES_ZH,
+  monthLabel,
+  type ReportRecord,
+} from "~/lib/reports";
+
+interface Props {
+  reports: ReportRecord[];
+  lang: Lang;
+}
+
+const { reports, lang } = Astro.props;
+const dayNames = lang === "zh" ? DAY_NAMES_ZH : DAY_NAMES_EN;
+
+const dateMap = new Map<string, string>();
+for (const r of reports) dateMap.set(r.date, `${r.date}/`);
+
+const monthsSet = new Set<string>();
+for (const d of dateMap.keys()) {
+  const [y, m] = d.split("-");
+  monthsSet.add(`${y}-${m}`);
+}
+const months = Array.from(monthsSet)
+  .sort()
+  .reverse()
+  .map((s) => {
+    const [y, m] = s.split("-").map(Number);
+    return { year: y, month: m };
+  });
+
+interface DayCell {
+  day: number;
+  date: string;
+  url: string | null;
+  weekend: boolean;
+  empty: boolean;
+}
+
+function buildMonthGrid(year: number, month: number): DayCell[][] {
+  const firstOfMonth = new Date(Date.UTC(year, month - 1, 1));
+  const startWeekday = firstOfMonth.getUTCDay();
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+  const cells: DayCell[] = [];
+  for (let i = 0; i < startWeekday; i++) {
+    cells.push({ day: 0, date: "", url: null, weekend: false, empty: true });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const col = (startWeekday + d - 1) % 7;
+    cells.push({
+      day: d,
+      date,
+      url: dateMap.get(date) ?? null,
+      weekend: col === 0 || col === 6,
+      empty: false,
+    });
+  }
+  while (cells.length < 42) {
+    cells.push({ day: 0, date: "", url: null, weekend: false, empty: true });
+  }
+  const weeks: DayCell[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
+
+const rendered = months.map(({ year, month }) => {
+  const count = Array.from(dateMap.keys()).filter((d) =>
+    d.startsWith(`${year}-${String(month).padStart(2, "0")}-`),
+  ).length;
+  return {
+    label: monthLabel(year, month, lang),
+    count,
+    weeks: buildMonthGrid(year, month),
+  };
+});
+---
+<div class="calendar-grid">
+  {rendered.map((m) => (
+    <div class="calendar">
+      <div class="calendar__head">
+        <div class="calendar__month">{m.label}</div>
+        <div class="calendar__count">{m.count}</div>
+      </div>
+      <table class="calendar__table">
+        <thead>
+          <tr>
+            {dayNames.map((n, i) => (
+              <th class={i === 0 || i === 6 ? "is-weekend" : undefined}>{n}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {m.weeks.map((week) => (
+            <tr>
+              {week.map((cell) => {
+                if (cell.empty) return <td></td>;
+                const cls = [
+                  cell.weekend ? "is-weekend" : "",
+                  cell.url ? "has-report" : "",
+                ].filter(Boolean).join(" ");
+                return (
+                  <td class={cls || undefined}>
+                    {cell.url ? <a href={cell.url}>{cell.day}</a> : cell.day}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  ))}
+</div>

@@ -1,0 +1,153 @@
+name: Translate reports to Chinese
+
+on:
+  # schedule: # Disabled: Cloudflare Worker handles scheduling
+  #   - cron: '0 4 * * *'
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Copilot model to use for translation.
+        required: false
+        type: choice
+        default: gpt-5.4
+        options:
+          - claude-opus-4.6
+          - claude-sonnet-4.6
+          - gpt-5.4
+          - gpt-5.5
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  HARVESTER_REPO: vibewatch/harvester
+
+jobs:
+  translate:
+    name: Translate to Chinese
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout harvester
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.HARVESTER_REPO }}
+          token: ${{ secrets.HARVESTER_PAT }}
+          path: harvester
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+
+      - name: Select model effort
+        id: copilot-model
+        env:
+          COPILOT_MODEL: ${{ inputs.model || 'gpt-5.4' }}
+        run: |
+          case "$COPILOT_MODEL" in
+            claude-opus-4.6|claude-sonnet-4.6)
+              COPILOT_EFFORT=high
+              ;;
+            gpt-5.4|gpt-5.5)
+              COPILOT_EFFORT=xhigh
+              ;;
+            *)
+              echo "::error::Unsupported Copilot model: $COPILOT_MODEL"
+              exit 1
+              ;;
+          esac
+          echo "model=$COPILOT_MODEL" >> "$GITHUB_OUTPUT"
+          echo "effort=$COPILOT_EFFORT" >> "$GITHUB_OUTPUT"
+
+      - name: Translate reports
+        working-directory: harvester
+        continue-on-error: true
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_PAT }}
+        run: |
+          copilot -p "Translate English markdown reports in reports/ lacking Chinese versions. Run the translation work through concurrent write-enabled subagents, split by source/topic or file batch so each subagent writes only its assigned missing .zh.md files, and wait until every corresponding .zh.md file has been generated before exiting. Do NOT run git add or git commit." --model "${{ steps.copilot-model.outputs.model }}" --effort "${{ steps.copilot-model.outputs.effort }}" --yolo --autopilot
+
+      - name: Detect new translations
+        id: check-translations
+        working-directory: harvester
+        run: |
+          # Detect uncommitted .zh.md files (normal case)
+          UNSTAGED=$(git status --porcelain reports/ | grep '\.zh\.md$' || true)
+          # Detect .zh.md files already committed by Copilot CLI (fallback)
+          COMMITTED=$(git log origin/main..HEAD --name-only --diff-filter=A 2>/dev/null | grep '\.zh\.md$' || true)
+          if [ -n "$UNSTAGED" ] || [ -n "$COMMITTED" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push translations to harvester
+        if: steps.check-translations.outputs.has_changes == 'true'
+        working-directory: harvester
+        run: |
+          push_with_rebase_retry() {
+            for attempt in 1 2 3 4 5; do
+              git fetch origin main
+              git rebase origin/main
+              if git push origin HEAD:main; then
+                return 0
+              fi
+              echo "Push failed on attempt ${attempt}; retrying after rebasing latest origin/main..."
+            done
+            echo "Unable to push after 5 attempts."
+            return 1
+          }
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add 'reports/**/*.zh.md'
+          if git diff --cached --quiet; then
+            echo "No staged translations to commit; changes may already be committed."
+          else
+            git commit -m "Add Chinese translations for $(date -u +%Y-%m-%d)"
+          fi
+          push_with_rebase_retry
+
+      - name: Checkout website
+        if: steps.check-translations.outputs.has_changes == 'true'
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.WEBSITE_PAT }}
+          path: website
+
+      - name: Copy translations to website
+        if: steps.check-translations.outputs.has_changes == 'true'
+        run: |
+          rsync -av --include='*/' --include='*.zh.md' --exclude='*' harvester/reports/ website/docs/
+
+      - name: Push docs to website
+        if: steps.check-translations.outputs.has_changes == 'true'
+        working-directory: website
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/
+          if git diff --cached --quiet; then
+            echo "No new translations to push"
+          else
+            git commit -m "Add Chinese translations for $(date -u +%Y-%m-%d)"
+            push_with_rebase_retry() {
+              for attempt in 1 2 3 4 5; do
+                git fetch origin main
+                git rebase origin/main
+                if git push origin HEAD:main; then
+                  return 0
+                fi
+                echo "Push failed on attempt ${attempt}; retrying after rebasing latest origin/main..."
+              done
+              echo "Unable to push after 5 attempts."
+              return 1
+            }
+
+            push_with_rebase_retry
+          fi

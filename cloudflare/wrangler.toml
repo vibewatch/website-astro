@@ -1,0 +1,38 @@
+name = "website-scheduler"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+# Fire exactly at the UTC times used by the website GitHub Actions schedules.
+[triggers]
+crons = ["0 1-4 * * *", "30 1 * * *"]
+
+# Non-sensitive Worker vars can be stored here. Secrets are NOT stored here.
+[vars]
+GITHUB_REPO = "vibewatch/vibewatch.github.io"
+# GITHUB_REF defaults to "main" if omitted.
+# GITHUB_REF = "main"
+
+# Default Copilot model dispatched to every workflow.
+# Allowed: gpt-5.4, gpt-5.5, claude-opus-4.6, claude-sonnet-4.6
+WORKFLOW_MODEL = "gpt-5.4"
+
+# Optional per-workflow overrides. Uncomment to override WORKFLOW_MODEL for a
+# single workflow without affecting the rest.
+# MODEL_HACKERNEWS = "gpt-5.4"
+# MODEL_YOUTUBE    = "gpt-5.4"
+# MODEL_REDDIT     = "gpt-5.4"
+# MODEL_TWITTER    = "gpt-5.4"
+# MODEL_TRANSLATE  = "gpt-5.4"
+
+# Set secrets via:
+#   npx wrangler secret put GITHUB_TOKEN
+#
+# GITHUB_TOKEN - Fine-grained PAT: Actions: Read & Write on the target repo
+
+[observability]
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true

@@ -1,0 +1,38 @@
+---
+import BaseLayout from "~/layouts/BaseLayout.astro";
+import LatestReports from "~/components/LatestReports.astro";
+import { STRINGS } from "~/data/site";
+
+const lang = "zh" as const;
+const t = STRINGS[lang];
+---
+<BaseLayout lang={lang} pageTitle={t.homeTitle} altLangHref="/">
+  <section class="hero">
+    <div class="container">
+      <div class="hero__eyebrow">每日 · 2026 起持续更新</div>
+      <h1 class="hero__title">
+        每一个 <em>AI</em> 早晨的脉搏。
+      </h1>
+      <p class="hero__lede">{t.heroTagline}</p>
+      <div class="hero__actions">
+        <button class="cta-btn" id="subscribe-open-hero" type="button">
+          {t.subscribe} →
+        </button>
+        <a class="cta-btn cta-btn--ghost" href="#latest">
+          {t.latestReports}
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <div class="container fade-in" id="latest">
+    <LatestReports lang={lang} />
+  </div>
+</BaseLayout>
+
+<script is:inline>
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("#subscribe-open-hero");
+    if (b) { var s = document.getElementById("subscribe-open"); if (s) s.click(); }
+  });
+</script>

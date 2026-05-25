@@ -1,0 +1,68 @@
+---
+import { type GetStaticPaths } from "astro";
+import BaseLayout from "~/layouts/BaseLayout.astro";
+import ReportCalendar from "~/components/ReportCalendar.astro";
+import {
+  SOURCES,
+  STRINGS,
+  TOPICS,
+  sourceLabel,
+  topicLabel,
+  topicDescription,
+} from "~/data/site";
+import { getReportsByLang, homeUrl, topicUrl } from "~/lib/reports";
+
+const lang = "en" as const;
+
+export const getStaticPaths = (async () => {
+  const reports = await getReportsByLang("en");
+  return SOURCES.flatMap((s) =>
+    TOPICS.map((t) => {
+      const list = reports.filter(
+        (r) => r.source === s.key && r.topic === t.key,
+      );
+      if (list.length === 0) return null;
+      return {
+        params: { source: s.key, topic: t.key },
+        props: { reports: list },
+      };
+    }).filter((p): p is NonNullable<typeof p> => p !== null),
+  );
+}) satisfies GetStaticPaths;
+
+const { source, topic } = Astro.params;
+const { reports } = Astro.props as {
+  reports: Awaited<ReturnType<typeof getReportsByLang>>;
+};
+const sm = SOURCES.find((s) => s.key === source)!;
+const tm = TOPICS.find((t) => t.key === topic)!;
+const title = `${sourceLabel(sm, lang)} · ${topicLabel(tm, lang)}`;
+const desc = topicDescription(tm, lang);
+const t = STRINGS[lang];
+const altLangHref = topicUrl(source!, topic!, "zh");
+---
+<BaseLayout
+  lang={lang}
+  pageTitle={title}
+  description={`${desc} ${t.topicCalendarHint}`}
+  activeSource={sm.key}
+  activeTopic={tm.key}
+  altLangHref={altLangHref}
+>
+  <div class="container">
+    <header class="page-header">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a href={homeUrl(lang)}>{t.home}</a>
+        <span class="crumbs__sep">/</span>
+        <span set:html={sm.iconSvg} style="display:inline-flex;color:var(--accent);"></span>
+        <span>{sourceLabel(sm, lang)}</span>
+        <span class="crumbs__sep">/</span>
+        <span>{topicLabel(tm, lang)}</span>
+      </nav>
+      <h1 class="page-header__title">{title}</h1>
+      <p class="page-header__lede">{desc} {t.topicCalendarHint}</p>
+    </header>
+
+    <ReportCalendar reports={reports} lang={lang} />
+  </div>
+</BaseLayout>

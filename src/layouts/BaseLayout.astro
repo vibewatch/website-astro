@@ -1,0 +1,95 @@
+---
+import "~/styles/global.css";
+import ThemeBootstrap from "~/components/ThemeBootstrap.astro";
+import AnalyticsTag from "~/components/AnalyticsTag.astro";
+import SiteHeader from "~/components/SiteHeader.astro";
+import SiteFooter from "~/components/SiteFooter.astro";
+import SubscribeDialog from "~/components/SubscribeDialog.astro";
+import PagefindOverlay from "~/components/PagefindOverlay.astro";
+import {
+  SITE,
+  STRINGS,
+  type Lang,
+  type SourceKey,
+  type TopicKey,
+} from "~/data/site";
+import { feedUrl } from "~/lib/reports";
+
+interface Props {
+  lang: Lang;
+  pageTitle?: string;
+  description?: string;
+  ogImage?: string;
+  author?: string;
+  date?: string;
+  canonical?: string;
+  activeSource?: SourceKey;
+  activeTopic?: TopicKey;
+  altLangHref?: string;
+}
+
+const {
+  lang,
+  pageTitle,
+  description,
+  ogImage,
+  author,
+  date,
+  canonical,
+  activeSource,
+  activeTopic,
+  altLangHref,
+} = Astro.props;
+
+const t = STRINGS[lang];
+const title = pageTitle ? `${pageTitle} — ${t.siteName}` : t.siteName;
+const desc = description ?? t.siteDescription;
+const canonicalUrl =
+  canonical ?? new URL(Astro.url.pathname, SITE.url).toString();
+---
+<!doctype html>
+<html lang={lang === "zh" ? "zh" : "en"}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={desc} />
+    <link rel="canonical" href={canonicalUrl} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={desc} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content={t.siteName} />
+    <meta name="twitter:card" content="summary_large_image" />
+    {ogImage && <meta property="og:image" content={ogImage} />}
+    {ogImage && <meta name="twitter:image" content={ogImage} />}
+    {author && <meta property="article:author" content={author} />}
+    {date && <meta property="article:published_time" content={date} />}
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title={t.rss}
+      href={feedUrl(lang)}
+    />
+    <link rel="stylesheet" href="/pagefind/pagefind-ui.css" />
+    <ThemeBootstrap />
+    <AnalyticsTag />
+  </head>
+  <body>
+    <a id="top" tabindex="-1" aria-hidden="true"></a>
+    <SiteHeader lang={lang} activeSource={activeSource} activeTopic={activeTopic} altLangHref={altLangHref} />
+    <main class="site-main">
+      <slot />
+    </main>
+    <SiteFooter lang={lang} />
+    <SubscribeDialog lang={lang} />
+    <PagefindOverlay />
+
+    <script is:inline src="/pagefind/pagefind-ui.js"></script>
+    <script is:inline src="/javascripts/external-links.js"></script>
+    <script is:inline src="/javascripts/engagement-metrics.js"></script>
+    <script is:inline src="/javascripts/subscribe.js"></script>
+    <script is:inline src="/javascripts/pagefind-init.js"></script>
+  </body>
+</html>
+

@@ -1,0 +1,34 @@
+---
+import type { Lang } from "~/data/site";
+import { reportUrl, shortLabel, type ReportRecord } from "~/lib/reports";
+
+interface Props {
+  prev?: ReportRecord;
+  next?: ReportRecord;
+  lang: Lang;
+}
+
+const { prev, next, lang } = Astro.props;
+const prevLabel = lang === "zh" ? "上一期" : "Previous";
+const nextLabel = lang === "zh" ? "下一期" : "Next";
+---
+{(prev || next) && (
+  <nav class="pager" aria-label="Pagination">
+    {prev ? (
+      <a class="pager__link pager__link--prev" href={reportUrl(prev)}>
+        <span class="pager__label">← {prevLabel}</span>
+        <span class="pager__title">{shortLabel(prev.date, lang)}</span>
+      </a>
+    ) : (
+      <span class="pager__link pager__link--prev" style="visibility:hidden"></span>
+    )}
+    {next ? (
+      <a class="pager__link pager__link--next" href={reportUrl(next)}>
+        <span class="pager__label">{nextLabel} →</span>
+        <span class="pager__title">{shortLabel(next.date, lang)}</span>
+      </a>
+    ) : (
+      <span class="pager__link pager__link--next" style="visibility:hidden"></span>
+    )}
+  </nav>
+)}

@@ -1,0 +1,81 @@
+---
+import type { MarkdownHeading } from "astro";
+import type { Lang } from "~/data/site";
+
+interface Props {
+  headings: MarkdownHeading[];
+  lang: Lang;
+}
+
+const { headings, lang } = Astro.props;
+const items = headings.filter((h) => h.depth >= 2 && h.depth <= 3);
+
+interface Node { heading: MarkdownHeading; children: Node[]; }
+const tree: Node[] = [];
+for (const h of items) {
+  if (h.depth === 2) tree.push({ heading: h, children: [] });
+  else if (h.depth === 3 && tree.length > 0) {
+    tree[tree.length - 1]!.children.push({ heading: h, children: [] });
+  }
+}
+
+const label = lang === "zh" ? "目录" : "On this page";
+---
+{tree.length > 0 && (
+  <aside class="article-toc" aria-label={label}>
+    <p class="article-toc__label">{label}</p>
+    <ul>
+      {tree.map((node) => (
+        <li>
+          <a href={`#${node.heading.slug}`}>{node.heading.text}</a>
+          {node.children.length > 0 && (
+            <ul>
+              {node.children.map((c) => (
+                <li>
+                  <a href={`#${c.heading.slug}`}>{c.heading.text}</a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </li>
+      ))}
+    </ul>
+  </aside>
+)}
+
+<script is:inline>
+  (function () {
+    var toc = document.querySelector(".article-toc");
+    if (!toc) return;
+    var links = Array.prototype.slice.call(toc.querySelectorAll("a"));
+    if (!links.length) return;
+    var slugToLink = new Map();
+    for (var i = 0; i < links.length; i++) {
+      var href = links[i].getAttribute("href") || "";
+      if (href.charAt(0) === "#") slugToLink.set(href.slice(1), links[i]);
+    }
+    var targets = [];
+    slugToLink.forEach(function (_, slug) {
+      var el = document.getElementById(slug);
+      if (el) targets.push(el);
+    });
+    if (!targets.length) return;
+    var active = null;
+    function setActive(link) {
+      if (active === link) return;
+      if (active) active.classList.remove("is-active");
+      active = link;
+      if (active) active.classList.add("is-active");
+    }
+    var observer = new IntersectionObserver(function (entries) {
+      var visible = entries.filter(function (e) { return e.isIntersecting; });
+      visible.sort(function (a, b) { return a.boundingClientRect.top - b.boundingClientRect.top; });
+      if (visible.length) {
+        var id = visible[0].target.id;
+        var link = slugToLink.get(id);
+        if (link) setActive(link);
+      }
+    }, { rootMargin: "-80px 0px -70% 0px", threshold: 0 });
+    targets.forEach(function (t) { observer.observe(t); });
+  })();
+</script>

@@ -1,0 +1,116 @@
+# AI Pulse Daily
+
+AI Pulse Daily — surfacing themes, pain points, and emerging topics from the social web.
+
+## Overview
+
+This project powers [genisisiq.com](https://genisisiq.com/), a static site that publishes daily analysis reports from social media platforms. Reports are auto-discovered from date-named Markdown files and presented with interactive calendars and topic cards. The site is bilingual (English + Simplified Chinese) and ships with a built-in search index and RSS feed.
+
+## Tech Stack
+
+- **[Astro 5](https://astro.build/)** — static site generator
+- **[Pagefind](https://pagefind.app/)** — client-side search (runs as a build step over `dist/`)
+- **Node ≥ 22**
+
+## Data Sources
+
+| Source | Topic | Path |
+|--------|-------|------|
+| Reddit | AI | `docs/reddit/ai/` |
+| Reddit | AI Agent | `docs/reddit/ai-agent/` |
+| Reddit | AI Coding | `docs/reddit/ai-coding/` |
+| Twitter | AI | `docs/twitter/ai/` |
+| Twitter | AI Agent | `docs/twitter/ai-agent/` |
+| Twitter | AI Coding | `docs/twitter/ai-coding/` |
+| HackerNews | AI | `docs/hackernews/ai/` |
+| YouTube | AI | `docs/youtube/ai/` |
+
+## Project Structure
+
+```
+docs/<source>/<topic>/YYYY-MM-DD.md(.zh.md)        # Report markdown (repo root)
+src/
+├── content.config.ts          # Astro content collection schema
+├── data/site.ts               # Sources, topics, i18n strings, icons
+├── lib/reports.ts             # Report query + metadata helpers
+├── layouts/BaseLayout.astro   # HTML shell, head, header, footer, scripts
+├── components/                # Header, footer, dialogs, calendar, cards
+├── pages/                     # Routes (EN at /, ZH under /zh/)
+│   ├── index.astro
+│   ├── [source]/[topic]/index.astro
+│   ├── [source]/[topic]/[date].astro
+│   ├── feed.xml.ts
+│   ├── 404.astro
+│   └── zh/...                 # Mirror of EN tree
+└── styles/extra.css           # Design system (Anthropic-inspired)
+
+public/
+└── javascripts/               # External-link, subscribe, engagement, Pagefind init
+```
+
+Generated `pagefind/` files are emitted into `dist/pagefind/` during the build and served from the deployed site.
+
+## Adding Content
+
+Create a new date-named Markdown file under `docs/<source>/<topic>/` (e.g. `docs/reddit/ai-agent/2026-04-12.md`). The site auto-discovers it — no config changes needed. Chinese translations live alongside the English file with a `.zh.md` suffix.
+
+## Development
+
+```bash
+npm install
+npm run dev      # http://localhost:4321
+npm run build    # astro build && pagefind --site dist
+npm run preview  # serve ./dist locally
+```
+
+The full `npm run build` runs Astro and then Pagefind in sequence. Use `npm run build:site` to skip Pagefind during fast iteration.
+
+## Workflows
+
+| Workflow | Trigger | Description |
+|----------|---------|-------------|
+| `deploy-site.yml` | Push to `main` (Astro src/config changes) | Builds the Astro site, runs Pagefind, deploys to GitHub Pages, and notifies subscribers when new report files are added. |
+| `build-reddit-reports.yml` | Cloudflare / manual | Generates daily Reddit analysis reports and syncs them into `docs/reddit/`. |
+| `build-twitter-reports.yml` | Cloudflare / manual | Generates daily Twitter analysis reports and syncs them into `docs/twitter/`. |
+| `build-hackernews-reports.yml` | Cloudflare / manual | Generates daily HackerNews analysis reports and syncs them into `docs/hackernews/`. |
+| `build-youtube-reports.yml` | Cloudflare / manual | Generates daily YouTube analysis reports and syncs them into `docs/youtube/`. |
+| `build-source-reports-reusable.yml` | Reusable workflow | Shared implementation for English source report generation and website sync. Excludes `.zh.md` translations. |
+| `translate-reports-to-chinese.yml` | Cloudflare / manual | Translates English reports into Chinese (`.zh.md`) and syncs them into `docs/`. |
+
+### Cloudflare Scheduler
+
+The `cloudflare/` Worker owns the cron schedule and dispatches the report workflows through the GitHub Actions API. Native GitHub Actions `schedule` triggers are left commented in the workflow files as references, while `workflow_dispatch` remains the execution entrypoint.
+
+From `cloudflare/`, deploy it with Wrangler:
+
+```bash
+npx wrangler secret put GITHUB_TOKEN
+npx wrangler deploy
+```
+
+Use a fine-grained GitHub PAT with **Actions: Read & Write** access on `vibewatch/vibewatch.github.io`. `GITHUB_REPO` is stored as a non-sensitive Worker var in `cloudflare/wrangler.toml`. `GITHUB_REF` is optional, defaults to `main`, and can also be set as a Worker var if dispatches need to target another ref.
+
+### Report Generation Pipeline
+
+The English source workflows (`build-reddit-reports`, `build-twitter-reports`, `build-hackernews-reports`, `build-youtube-reports`) call `build-source-reports-reusable.yml` with source-specific inputs. The shared workflow follows this pattern:
+
+1. Fetch raw JSON data collected from the source platform.
+2. Generate or translate Markdown reports using **Copilot CLI**.
+3. Copy the new English Markdown files into this repo's `docs/` directory, excluding `.zh.md` translations.
+4. Push to `main`, which triggers the `deploy-site.yml` deploy workflow.
+
+The `translate-reports-to-chinese.yml` workflow handles `.zh.md` translations separately.
+
+### Newsletter Notification
+
+The `notify-subscribers` job in `deploy-site.yml` runs after deployment on push events:
+
+1. Compares `HEAD~1..HEAD` to detect **newly added** English report files (excludes `.zh.md` translations).
+2. Builds an HTML email with links to each new report on `genisisiq.com`.
+3. Sends the email to subscribers via a newsletter worker API.
+
+Newsletter delivery is optional: the job skips sending when newsletter secrets are missing, and notification delivery errors do not fail the site deployment.
+
+## Deployment
+
+Built to `dist/` and deployed to GitHub Pages at [genisisiq.com](https://genisisiq.com/).

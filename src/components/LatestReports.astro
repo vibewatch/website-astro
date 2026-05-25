@@ -1,0 +1,85 @@
+---
+import {
+  STRINGS,
+  SOURCES,
+  sourceLabel,
+  topicLabel,
+  topicDescription,
+  topicMeta,
+  type Lang,
+} from "~/data/site";
+import {
+  getTopicsForLang,
+  reportUrl,
+  shortLabel,
+  topicUrl,
+} from "~/lib/reports";
+
+interface Props {
+  lang: Lang;
+  limit?: number;
+}
+
+const { lang, limit = 3 } = Astro.props;
+const t = STRINGS[lang];
+const groups = await getTopicsForLang(lang, limit);
+
+const sections = SOURCES.map((src) => ({
+  source: src,
+  topics: groups
+    .filter((g) => g.source === src.key)
+    .map((g) => {
+      const tm = topicMeta(g.topic);
+      return { tm, reports: g.reports, topicKey: g.topic };
+    })
+    .filter((g) => g.tm),
+})).filter((s) => s.topics.length > 0);
+---
+{sections.map((s) => (
+  <section class="section" id={s.source.key}>
+    <header class="section__head">
+      <h2 class="section__title">
+        <span set:html={s.source.iconSvg}></span>
+        <span>{sourceLabel(s.source, lang)}</span>
+      </h2>
+    </header>
+
+    <div class="card-grid">
+      {s.topics.map((entry) => (
+        <article class="report-card">
+          <div class="report-card__topic">{topicLabel(entry.tm!, lang)}</div>
+          <h3 class="report-card__title">
+            <a
+              href={topicUrl(s.source.key, entry.topicKey, lang)}
+              style="text-decoration:none;color:inherit;"
+            >
+              {topicDescription(entry.tm!, lang)}
+            </a>
+          </h3>
+          <p class="report-card__desc">
+            {lang === "zh"
+              ? `最近 ${entry.reports.length} 期速递`
+              : `Latest ${entry.reports.length} reports`}
+          </p>
+          <div class="report-card__chips">
+            {entry.reports.map((r, i) => (
+              <a
+                href={reportUrl(r)}
+                class={"date-chip" + (i === 0 ? " date-chip--primary" : "")}
+              >
+                {shortLabel(r.date, lang)}
+              </a>
+            ))}
+            <a
+              href={topicUrl(s.source.key, entry.topicKey, lang)}
+              class="date-chip"
+              title={t.viewAllTitle}
+            >
+              {t.viewAll} ›
+            </a>
+          </div>
+        </article>
+      ))}
+    </div>
+  </section>
+))}
