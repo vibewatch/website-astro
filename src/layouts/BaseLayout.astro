@@ -81,6 +81,19 @@ const canonicalUrl =
     <main class="site-main">
       <slot />
     </main>
+    <section class="prefooter" data-pagefind-ignore aria-label={t.subscribe}>
+      <div class="container">
+        <div class="prefooter__inner">
+          <div>
+            <h2 class="prefooter__title">{t.prefooterTitle}</h2>
+            <p class="prefooter__lede">{t.prefooterLede}</p>
+          </div>
+          <button class="cta-btn cta-btn--invert" id="subscribe-open-prefooter" type="button">
+            {t.subscribe} →
+          </button>
+        </div>
+      </div>
+    </section>
     <SiteFooter lang={lang} />
     <SubscribeDialog lang={lang} />
     <PagefindOverlay />
@@ -90,6 +103,15 @@ const canonicalUrl =
     <script is:inline src="/javascripts/engagement-metrics.js"></script>
     <script is:inline src="/javascripts/subscribe.js"></script>
     <script is:inline src="/javascripts/pagefind-init.js"></script>
+    <script is:inline>
+      document.addEventListener("click", function (e) {
+        var t = e.target.closest && e.target.closest("#subscribe-open-prefooter");
+        if (t) {
+          var s = document.getElementById("subscribe-open");
+          if (s) s.click();
+        }
+      });
+    </script>
   </body>
 </html>
 

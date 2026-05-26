@@ -7,8 +7,12 @@ const lang = "zh" as const;
 const t = STRINGS[lang];
 ---
 <BaseLayout lang={lang} pageTitle={t.homeTitle} altLangHref="/">
-  <section class="hero">
-    <div class="container">
+  <section class="hero">    <div class="hero__bg" aria-hidden="true">
+      <span class="hero__bg-grid"></span>
+      <span class="hero__bg-orb hero__bg-orb--warm"></span>
+      <span class="hero__bg-orb hero__bg-orb--cool"></span>
+      <span class="hero__bg-orb hero__bg-orb--mid"></span>
+    </div>    <div class="container">
       <div class="hero__eyebrow">每日 · 2026 起持续更新</div>
       <h1 class="hero__title">
         每一个 <em>AI</em> 早晨的脉搏。

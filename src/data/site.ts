@@ -28,6 +28,9 @@ export const STRINGS = {
     alreadySubscribed: "You're already subscribed.",
     topicCalendarHint:
       "Click a highlighted date to view the report.",
+    prefooterTitle: "Never miss a pulse.",
+    prefooterLede:
+      "One concise daily digest. Trends, breakthroughs, and emerging topics \u2014 read in five minutes.",
   },
   zh: {
     siteName: "AI趋势速递",
@@ -48,6 +51,9 @@ export const STRINGS = {
     confirmed: "✓ 订阅已确认！欢迎加入。",
     alreadySubscribed: "你已经订阅过了。",
     topicCalendarHint: "点击高亮日期查看报告。",
+    prefooterTitle: "别错过每一个脉动。",
+    prefooterLede:
+      "每日一封精简速递：趋势、突破、热点与新兴话题，五分钟读完。",
   },
 } as const;
 
